@@ -125,6 +125,73 @@ class Macros(val c: blackbox.Context) {
     result
   }
 
+  def deriveConfDecoderReaderImpl[T: c.WeakTypeTag](default: Tree): Tree = {
+    val T = assumeClass[T]
+    val Tclass = T.typeSymbol.asClass
+    val settings = c.inferImplicitValue(weakTypeOf[Settings[T]])
+    if (settings == null || settings.isEmpty) {
+      c.abort(
+        c.enclosingPosition,
+        s"Missing implicit for ${weakTypeOf[Settings[T]]}]. " +
+          s"Hint, add `implicit val surface: ${weakTypeOf[Surface[T]]}` " +
+          s"to the companion ${T.companion.typeSymbol}"
+      )
+    }
+    val paramss = Tclass.primaryConstructor.asMethod.paramLists
+    if (paramss.size > 1) {}
+    if (paramss.head.isEmpty)
+      return q"_root_.metaconfig.ConfDecoderReader.constant($default)"
+
+    val (head :: params) :: Nil = paramss
+    def next(param: Symbol): Tree = {
+      val P = param.info.resultType
+      val name = param.name.decodedName.toString
+      val getter = T.member(param.name)
+      val fallback = q"tmp.$getter"
+      val next =
+        q"conf.readSettingOrElse[$P](settings.unsafeGet($name), $fallback)"
+      next
+    }
+    val product = params.foldLeft(next(head)) {
+      case (accum, param) => q"$accum.product(${next(param)})"
+    }
+    val tupleExtract = 1.to(params.length).foldLeft(q"t": Tree) {
+      case (accum, _) => q"$accum._1"
+    }
+    var curr = tupleExtract
+    val args = 0.to(params.length).map { _ =>
+      val old = curr
+      curr = curr match {
+        case q"$qual._1" =>
+          q"$qual._2"
+        case q"$qual._1._2" =>
+          q"$qual._2"
+        case q"$qual._2" =>
+          q"$qual"
+        case q"t" => q"t"
+      }
+      old
+    }
+    val ctor = q"new $T(..$args)"
+
+    val result = q"""
+       new ${weakTypeOf[ConfDecoderReader[WithDefault[T], T]]} {
+         def decoder: ${weakTypeOf[WithDefault[T] => ConfDecoder[T]]} = { state =>
+           new ${weakTypeOf[ConfDecoder[T]]} {
+             def read(conf: _root_.metaconfig.Conf): ${weakTypeOf[Configured[T]]} = {
+               val settings = $settings
+               val tmp = $default
+               $product.map { t =>
+                 $ctor
+               }
+             }
+           }
+         }
+       }
+     """
+    result
+  }
+
   def deriveSurfaceImpl[T: c.WeakTypeTag]: Tree = {
     val T = weakTypeOf[T]
     if (!T.typeSymbol.isClass || !T.typeSymbol.asClass.isCaseClass)

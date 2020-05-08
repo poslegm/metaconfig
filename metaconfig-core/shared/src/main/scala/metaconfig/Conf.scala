@@ -22,10 +22,18 @@ sealed abstract class Conf extends Product with Serializable {
   @deprecated("No longer supported", "0.7.1")
   final def diff(other: Conf): Option[(Conf, Conf)] = ConfOps.diff(this, other)
   final override def toString: String = show
+  def read[T](
+      default: T
+  )(implicit ev: ConfDecoderReader[WithDefault[T], T]): Configured[T] =
+    ev.decoder(WithDefault.of(default)).read(this)
   def as[T](implicit ev: ConfDecoder[T]): Configured[T] =
     ev.read(this)
+  def readSettingOrElse[T](setting: Setting, default: T)(
+      implicit ev: ConfDecoderReader[WithDefault[T], T]
+  ): Configured[T] =
+    ConfGet.getOrElse(this, default, setting.name, setting.alternativeNames: _*)
   def getSettingOrElse[T](setting: Setting, default: T)(
-      implicit ev: ConfDecoderWithDefaultMaybe[T]
+      implicit ev: ConfDecoder[T]
   ): Configured[T] =
     ConfGet.getOrElse(this, default, setting.name, setting.alternativeNames: _*)
   def get[T](path: String, extraNames: String*)(

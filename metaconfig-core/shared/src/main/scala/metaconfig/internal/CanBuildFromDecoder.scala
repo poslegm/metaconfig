@@ -46,7 +46,7 @@ object CanBuildFromDecoder {
     }
 
   def listReader[C[X] <: Iterable[X], A, S <: WithDefault[C[A]]](
-      implicit ev: ConfDecoder[A],
+      implicit ev: ConfDecoderReader[WithDefault[A], A],
       factory: Factory[A, C[A]],
       classTag: ClassTag[A]
   ): ConfDecoderReader[S, C[A]] =
@@ -54,6 +54,7 @@ object CanBuildFromDecoder {
       override def decoder: S => ConfDecoder[C[A]] =
         state =>
           new ConfDecoder[C[A]] {
+            implicit private val SHIT = ev.decoder(null)
             private val underlying = list[C, A]
 
             override def read(conf: Conf): Configured[C[A]] =

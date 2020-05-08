@@ -1,11 +1,13 @@
 package metaconfig
 
-import scala.language.higherKinds
+import java.nio.file.Path
+
 import metaconfig.ConfDecoderReader.ConfDecoderFactory
 import metaconfig.generic.Settings
 import metaconfig.internal.CanBuildFromDecoder
 
 import scala.collection.compat.Factory
+import scala.language.higherKinds
 import scala.reflect.ClassTag
 
 trait WithDefault[A] { self =>
@@ -52,14 +54,45 @@ trait ConfDecoderReader[S, A] { self =>
     }
 }
 
+// TODO remove useless WithDefault
 object ConfDecoderReader {
 
   type ConfDecoderFactory[S, A] = S => ConfDecoder[A]
 
+  def plain[T](
+      implicit ev: ConfDecoder[T]
+  ): ConfDecoderReader[WithDefault[T], T] =
+    new ConfDecoderReader[WithDefault[T], T] {
+      override def decoder: ConfDecoderFactory[WithDefault[T], T] = _ => ev
+    }
+
+  def constant[T](value: T): ConfDecoderReader[WithDefault[T], T] =
+    new ConfDecoderReader[WithDefault[T], T] {
+      override def decoder: ConfDecoderFactory[WithDefault[T], T] =
+        _ => ConfDecoder.constant(value)
+    }
+
+  implicit val confDecoder: ConfDecoderReader[WithDefault[Conf], Conf] = plain
+  implicit val intConfDecoder: ConfDecoderReader[WithDefault[Int], Int] = plain
+  implicit val bigDecimalConfDecoder
+      : ConfDecoderReader[WithDefault[BigDecimal], BigDecimal] = plain
+  implicit val stringConfDecoder
+      : ConfDecoderReader[WithDefault[String], String] = plain
+  implicit val unitConfDecoder: ConfDecoderReader[WithDefault[Unit], Unit] =
+    plain
+  implicit val booleanConfDecoder
+      : ConfDecoderReader[WithDefault[Boolean], Boolean] = plain
+  implicit lazy val pathConfDecoder
+      : ConfDecoderReader[WithDefault[Path], Path] = plain
+  implicit def canBuildFromOption[A](
+      implicit ev: ConfDecoder[A],
+      classTag: ClassTag[A]
+  ): ConfDecoderReader[WithDefault[Option[A]], Option[A]] = plain
+
   implicit def canBuildFromConfDecoderReader[C[X] <: Iterable[X], A, S <: WithDefault[
     C[A]
   ]](
-      implicit ev: ConfDecoder[A],
+      implicit ev: ConfDecoderReader[WithDefault[A], A],
       factory: Factory[A, C[A]],
       classTag: ClassTag[A]
   ): ConfDecoderReader[S, C[A]] =

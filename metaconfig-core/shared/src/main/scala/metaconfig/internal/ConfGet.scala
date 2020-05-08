@@ -1,7 +1,14 @@
 package metaconfig.internal
 
 import scala.collection.mutable
-import metaconfig.{Conf, ConfDecoder, ConfError, Configured, WithDefault}
+import metaconfig.{
+  Conf,
+  ConfDecoder,
+  ConfDecoderReader,
+  ConfError,
+  Configured,
+  WithDefault
+}
 import metaconfig.ConfDecoder.ConfDecoderWithDefaultMaybe
 
 object ConfGet {
@@ -16,6 +23,15 @@ object ConfGet {
         case _ => None
       }
     }
+
+  def readOrElse[T](conf: Conf, default: T, path: String, extraNames: String*)(
+      implicit ev: ConfDecoderReader[WithDefault[T], T]
+  ): Configured[T] = {
+    getKey(conf, path +: extraNames) match {
+      case Some(value) => ev.decoder(WithDefault.of(default)).read(value)
+      case None => Configured.Ok(default)
+    }
+  }
 
   def getOrElse[T](conf: Conf, default: T, path: String, extraNames: String*)(
       implicit ev: ConfDecoderWithDefaultMaybe[T]

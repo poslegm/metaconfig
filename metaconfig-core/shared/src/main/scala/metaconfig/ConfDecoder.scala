@@ -8,7 +8,6 @@ import metaconfig.Extractors.Number
 import metaconfig.generic.Settings
 import metaconfig.internal.CanBuildFromDecoder
 import metaconfig.internal.NoTyposDecoder
-import metaconfig.internal.Priority
 import java.nio.file.Path
 import java.nio.file.Paths
 
@@ -42,9 +41,6 @@ trait ConfDecoder[A] { self =>
 }
 
 object ConfDecoder {
-
-  type ConfDecoderWithDefaultMaybe[A] =
-    Priority[ConfDecoderReader[WithDefault[A], A], ConfDecoder[A]]
 
   @deprecated("Use ConfDecoder[T].read instead", "0.6.1")
   def decode[T](conf: Conf)(implicit ev: ConfDecoder[T]): Configured[T] =

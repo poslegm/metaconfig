@@ -9,7 +9,6 @@ import metaconfig.{
   Configured,
   WithDefault
 }
-import metaconfig.ConfDecoder.ConfDecoderWithDefaultMaybe
 
 object ConfGet {
   def getKey(obj: Conf, keys: Seq[String]): Option[Conf] =
@@ -34,11 +33,10 @@ object ConfGet {
   }
 
   def getOrElse[T](conf: Conf, default: T, path: String, extraNames: String*)(
-      implicit ev: ConfDecoderWithDefaultMaybe[T]
+      implicit ev: ConfDecoder[T]
   ): Configured[T] = {
     getKey(conf, path +: extraNames) match {
-      case Some(value) =>
-        ev.fold(_.decoder(WithDefault.of(default)).read(value))(_.read(value))
+      case Some(value) => ev.read(value)
       case None => Configured.Ok(default)
     }
   }
